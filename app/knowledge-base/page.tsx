@@ -13,6 +13,14 @@ interface FAQ {
   category: string
 }
 
+interface InventoryItem {
+  id: string
+  title: string
+  category: string
+  price: string
+  imageUrl: string
+}
+
 export default function KnowledgeBasePage() {
   const router = useRouter()
   const [loading, setLoading] = useState(true)
@@ -22,7 +30,7 @@ export default function KnowledgeBasePage() {
   const [faqs, setFaqs] = useState<FAQ[]>([])
 
   // 🎛️ Configurações dinâmicas da IA e do Sistema
-  const [systemMode, setSystemMode] = useState('appointments') // 'appointments', 'leads_auto', 'leads_imob'
+  const [systemMode, setSystemMode] = useState('appointments') 
   const [enableAppointments, setEnableAppointments] = useState(true)
   const [enableAiChatbot, setEnableAiChatbot] = useState(true)
   const [aiInstructions, setAiInstructions] = useState('')
@@ -35,11 +43,18 @@ export default function KnowledgeBasePage() {
   const [workWithPassageiro, setWorkWithPassageiro] = useState(true)
   const [workWithTransporte, setWorkWithTransporte] = useState(true)
 
-  // 🏢 NOVOS ESTADOS: Filtros Imobiliários (Quadrados para Corretores)
+  // 🏢 Estados: Filtros Imobiliários
   const [workWithCasa, setWorkWithCasa] = useState(true)
   const [workWithApto, setWorkWithApto] = useState(true)
   const [workWithTerreno, setWorkWithTerreno] = useState(true)
   const [workWithComercial, setWorkWithComercial] = useState(true)
+
+  // 📸 Estados do Gerenciador de Estoque / Catálogo Falso da IA
+  const [inventory, setInventory] = useState<InventoryItem[]>([])
+  const [itemTitle, setItemTitle] = useState('')
+  const [itemCategory, setItemCategory] = useState('')
+  const [itemPrice, setItemPrice] = useState('')
+  const [imagePreview, setImagePreview] = useState<string | null>(null)
 
   // Campos do Formulário de FAQ
   const [question, setQuestion] = useState('')
@@ -57,7 +72,7 @@ export default function KnowledgeBasePage() {
       try {
         let { data: orgs } = await supabase
           .from('organizations')
-          .select('*') // Puxa todos os campos para simplificar
+          .select('*')
           .eq('owner_id', user.id)
           .limit(1)
 
@@ -87,14 +102,12 @@ export default function KnowledgeBasePage() {
           setAiInstructions(orgs[0].ai_instructions || '')
           setAvailableSlots(orgs[0].available_slots || '09:00, 10:00, 14:00, 16:00')
           
-          // Carrega Automotivo
           setWorkWithSeminovos(orgs[0].work_with_seminovos ?? true)
           setWorkWithNovos(orgs[0].work_with_novos ?? true)
           setWorkWithCarga(orgs[0].work_with_carga ?? true)
           setWorkWithPassageiro(orgs[0].work_with_passageiro ?? true)
           setWorkWithTransporte(orgs[0].work_with_transporte ?? true)
 
-          // 🏢 CARREGA IMOBILIÁRIO DO SUPABASE
           setWorkWithCasa(orgs[0].work_with_casa ?? true)
           setWorkWithApto(orgs[0].work_with_apto ?? true)
           setWorkWithTerreno(orgs[0].work_with_terreno ?? true)
@@ -111,6 +124,12 @@ export default function KnowledgeBasePage() {
 
         if (kbError) throw kbError
         if (kbData) setFaqs(kbData)
+
+        // Injeta itens de estoque fakes iniciais para demonstração visual do catálogo
+        setInventory([
+          { id: 'i1', title: 'Renault Master Furgão L3H2', category: 'Carga', price: 'R$ 145.000', imageUrl: 'https://images.unsplash.com/photo-1549399542-7e3f8b79c341?w=400&q=80' },
+          { id: 'i2', title: 'Apartamento Duplex Mobiliado', category: 'Apartamento', price: 'R$ 4.500/mês', imageUrl: 'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=400&q=80' }
+        ])
 
       } catch (err) {
         console.error('Erro na inicialização:', err)
@@ -136,13 +155,11 @@ export default function KnowledgeBasePage() {
           enable_ai_chatbot: enableAiChatbot,
           ai_instructions: aiInstructions,
           available_slots: availableSlots,
-          // Salva Automotivo
           work_with_seminovos: workWithSeminovos,
           work_with_novos: workWithNovos,
           work_with_carga: workWithCarga,
           work_with_passageiro: workWithPassageiro,
           work_with_transporte: workWithTransporte,
-          // 🏢 SALVA AS TRAVAS DOS CORRETORES DE IMÓVEIS
           work_with_casa: workWithCasa,
           work_with_apto: workWithApto,
           work_with_terreno: workWithTerreno,
@@ -151,12 +168,41 @@ export default function KnowledgeBasePage() {
         .eq('id', orgId)
 
       if (error) throw error
-      alert('Configurações de nicho e IA salvas com sucesso! 🧠⚙️')
+      alert('Configurações Globais sincronizadas com sucesso! 🧠⚙️')
     } catch (err: any) {
       alert(`Erro ao salvar configurações: ${err.message}`)
     } finally {
       setSavingConfig(false)
     }
+  }
+
+  // Captura a foto carregada por Upload local do navegador
+  function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (file) {
+      const localUrl = URL.createObjectURL(file)
+      setImagePreview(localUrl)
+    }
+  }
+
+  // Adiciona um item no Gerenciador de Estoque Ativo da IA
+  function handleAddInventoryItem(e: React.FormEvent) {
+    e.preventDefault()
+    if (!itemTitle || !itemPrice) return
+
+    const newItem: InventoryItem = {
+      id: Math.random().toString(),
+      title: itemTitle,
+      category: itemCategory || 'Geral',
+      price: itemPrice,
+      imageUrl: imagePreview || 'https://images.unsplash.com/photo-1549399542-7e3f8b79c341?w=400&q=80'
+    }
+
+    setInventory([newItem, ...inventory])
+    setItemTitle('')
+    setItemPrice('')
+    setImagePreview(null)
+    alert('Item injetado no catálogo ativo da IA! O robô agora pode citar este produto.')
   }
 
   async function handleAddFAQ(e: React.FormEvent) {
@@ -220,14 +266,13 @@ export default function KnowledgeBasePage() {
       <main className="flex-1 p-4 sm:p-6 md:p-10 space-y-8 overflow-y-auto">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">🧠 Treinar Inteligência Artificial</h1>
-          <p className="text-sm text-neutral-400">Customize o comportamento e o modelo de negócio do seu robô.</p>
+          <p className="text-sm text-neutral-400">Customize o comportamento, estoque e modelo de negócio do seu robô.</p>
         </div>
 
         {/* ⚙️ PAINEL: CONFIGURAÇÕES GLOBAIS */}
         <form onSubmit={handleSaveAIConfig} className="border border-neutral-800 bg-neutral-900/40 p-6 rounded-2xl max-w-4xl space-y-5">
           <h3 className="text-sm font-bold uppercase tracking-wider text-neutral-300">Regras de Comportamento Global</h3>
           
-          {/* 🎯 SELETOR DE MODO DO SAAS MULTI-NICHO */}
           <div className="space-y-1">
             <label className="text-xs font-semibold text-neutral-400">Modelo de Negócio do Cliente</label>
             <select
@@ -268,12 +313,12 @@ export default function KnowledgeBasePage() {
             </div>
           )}
 
-          {/* 🏢 🏢 NOVO: FILTROS EXCLUSIVOS PARA CORRETORES DE IMÓVEIS */}
+          {/* 🏢 FILTROS IMOBILIÁRIOS */}
           {systemMode === 'leads_imob' && (
             <div className="space-y-3 p-4 bg-neutral-950 border border-neutral-900 rounded-xl animate-fade-in">
               <div>
                 <label className="text-sm font-semibold text-white block">Foco da Carteira Imobiliária</label>
-                <span className="text-xs text-neutral-500">Selecione quais perfis de imóveis a sua imobiliária gerencia para calibrar o robô.</span>
+                <span className="text-xs text-neutral-500">Selecione os tipos de imóveis atendidos para calibrar as respostas da IA.</span>
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <div onClick={() => setWorkWithCasa(!workWithCasa)} className={`p-4 rounded-xl border text-center cursor-pointer transition ${workWithCasa ? 'bg-emerald-500/10 border-emerald-500 text-white' : 'bg-neutral-900/30 border-neutral-800 text-neutral-500'}`}>
@@ -286,7 +331,7 @@ export default function KnowledgeBasePage() {
                   <span className="text-xl">🌱</span><span className="text-xs font-medium block mt-1">Terrenos / Lotes</span>
                 </div>
                 <div onClick={() => setWorkWithComercial(!workWithComercial)} className={`p-4 rounded-xl border text-center cursor-pointer transition ${workWithComercial ? 'bg-emerald-500/10 border-emerald-500 text-white' : 'bg-neutral-900/30 border-neutral-800 text-neutral-500'}`}>
-                  <span className="text-xl">🏪</span><span className="text-xs font-medium block mt-1">Comercial / Galpão</span>
+                  <span className="text-xl">🏪</span><span className="text-xs font-medium block mt-1">Comercial</span>
                 </div>
               </div>
             </div>
@@ -328,7 +373,7 @@ export default function KnowledgeBasePage() {
               onChange={(e) => setAiInstructions(e.target.value)}
               className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-emerald-500 text-white resize-none"
               placeholder={systemMode === 'leads_imob' 
-                ? "Ex: Você é a atendente virtual da Imobiliária Nova Era. Descubra de forma sutil se o cliente quer comprar ou alugar, qual o bairro preferido e a faixa de preço..."
+                ? "Ex: Você é a atendente virtual da Imobiliária. Descubra se quer comprar ou alugar..."
                 : "Insira as diretrizes do robô..."}
             />
           </div>
@@ -337,6 +382,74 @@ export default function KnowledgeBasePage() {
             {savingConfig ? 'Sincronizando...' : 'Salvar Configurações Globais'}
           </button>
         </form>
+
+        {/* 📸 🚀 NOVO PAINEL DE NÍVEL SÊNIOR: GERENCIADOR DE ESTOQUE COMPLETO COM UPLOAD DE FOTOS */}
+        {systemMode !== 'appointments' && (
+          <>
+            <hr className="border-neutral-900 max-w-4xl" />
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 max-w-4xl animate-fade-in">
+              
+              {/* FORMULÁRIO DE INJEÇÃO NO CATÁLOGO */}
+              <div className="lg:col-span-1 border border-neutral-800 bg-neutral-900/30 p-6 rounded-xl space-y-4 h-fit">
+                <h3 className="text-sm font-bold text-emerald-400 uppercase tracking-wider">Injetar Item no Catálogo</h3>
+                <form onSubmit={handleAddInventoryItem} className="space-y-4">
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-neutral-400">Título do Produto</label>
+                    <input type="text" required value={itemTitle} onChange={(e) => setItemTitle(e.target.value)} className="w-full bg-neutral-950 border border-neutral-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none" placeholder={systemMode === 'leads_auto' ? "Ex: Sprinter 415 CDI Baú" : "Ex: Casa em Condomínio Fechado"}/>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-neutral-400">Valor / Preço Estimado</label>
+                    <input type="text" required value={itemPrice} onChange={(e) => setItemPrice(e.target.value)} className="w-full bg-neutral-950 border border-neutral-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none" placeholder="Ex: R$ 138.000"/>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-neutral-400">Classificação / Tipo</label>
+                    <input type="text" value={itemCategory} onChange={(e) => setItemCategory(e.target.value)} className="w-full bg-neutral-950 border border-neutral-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none" placeholder="Ex: Baú / Mobiliada"/>
+                  </div>
+                  
+                  {/* COMPONENTE INTERATIVO DE UPLOAD DE FOTO */}
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-neutral-400 block">Foto do Produto (Mídia IA)</label>
+                    <div className="border border-dashed border-neutral-800 rounded-lg p-2 text-center bg-neutral-950/50 hover:bg-neutral-950 transition relative overflow-hidden h-24 flex flex-col items-center justify-center cursor-pointer">
+                      {imagePreview ? (
+                        <img src={imagePreview} alt="Preview" className="w-full h-full object-cover absolute inset-0" />
+                      ) : (
+                        <>
+                          <span className="text-lg block">📸</span>
+                          <span className="text-[10px] text-neutral-500 mt-1 block">Clique para carregar imagem</span>
+                        </>
+                      )}
+                      <input type="file" accept="image/*" onChange={handleImageUpload} className="opacity-0 absolute inset-0 w-full h-full cursor-pointer" />
+                    </div>
+                  </div>
+
+                  <button type="submit" className="w-full bg-emerald-500 hover:bg-emerald-600 text-black font-bold py-2 rounded-lg text-xs transition">
+                    ➕ Sincronizar ao Estoque da IA
+                  </button>
+                </form>
+              </div>
+
+              {/* VITRINE VISUAL DO ESTOQUE DISPONÍVEL */}
+              <div className="lg:col-span-2 space-y-4">
+                <h3 className="text-sm font-bold text-neutral-400 uppercase tracking-wider">Estoque Ativo na Memória do Robô ({inventory.length})</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-h-[360px] overflow-y-auto pr-1">
+                  {inventory.map((item) => (
+                    <div key={item.id} className="border border-neutral-800 bg-neutral-900/50 rounded-xl overflow-hidden flex flex-col group">
+                      <div className="h-32 w-full bg-neutral-950 relative overflow-hidden border-b border-neutral-900">
+                        <img src={item.imageUrl} alt={item.title} className="w-full h-full object-cover transition duration-300 group-hover:scale-105" />
+                        <span className="absolute top-2 left-2 text-[9px] uppercase font-bold bg-black/60 backdrop-blur-md px-2 py-0.5 rounded border border-white/10 text-emerald-400">{item.category}</span>
+                      </div>
+                      <div className="p-3 bg-neutral-950/40 space-y-1">
+                        <h4 className="font-semibold text-white text-xs truncate">{item.title}</h4>
+                        <p className="text-xs font-mono font-bold text-emerald-400">{item.price}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+            </div>
+          </>
+        )}
 
         <hr className="border-neutral-900 max-w-4xl" />
 
@@ -347,7 +460,7 @@ export default function KnowledgeBasePage() {
             <form onSubmit={handleAddFAQ} className="space-y-4">
               <div className="space-y-1">
                 <label className="text-xs font-semibold text-neutral-400">Contexto</label>
-                <input type="text" value={category} onChange={(e) => setCategory(e.target.value)} className="w-full bg-neutral-950 border border-neutral-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none" placeholder="Ex: Financiamento / Documentos"/>
+                <input type="text" value={category} onChange={(e) => setCategory(e.target.value)} className="w-full bg-neutral-950 border border-neutral-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none"/>
               </div>
               <div className="space-y-1">
                 <label className="text-xs font-semibold text-neutral-400">Se o cliente disser:</label>

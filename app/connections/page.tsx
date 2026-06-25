@@ -85,7 +85,7 @@ export default function ConnectionsPage() {
 
       const { error } = await (supabase as any)
         .from('organizations')
-        .update({ whatsapp_status: 'loading_qr', whatsapp_qr: null, whatsapp_pairing_code: null })
+        .update({ whatsapp_status: 'loading_qr', whatsapp_qr: null, whatsapp_pairing_code: null, whatsapp_phone_request: null })
         .eq('owner_id', user.id)
 
       if (error) throw error
@@ -132,7 +132,7 @@ export default function ConnectionsPage() {
     }
   }
 
-  // 🔄 Função de Escape: Permite ao usuário resetar o status se errar o número ou travar
+  // 🔄 Função de Escape e Desconexão Total
   async function handleResetConnection() {
     try {
       setErrorMessage(null)
@@ -140,6 +140,7 @@ export default function ConnectionsPage() {
       setQrValue(null)
       setStatus('disconnected')
       setHasAutoSwitched(false)
+      setPhoneNumber('')
       
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
@@ -169,7 +170,7 @@ export default function ConnectionsPage() {
   return (
     <div className="flex min-h-screen bg-neutral-950 text-white select-none">
       
-      {/* 🧭 BARRA LATERAL (Escondida no Mobile) */}
+      {/* 🧭 BARRA LATERAL */}
       <aside className="w-64 border-r border-neutral-800 bg-neutral-950 p-6 flex flex-col justify-between hidden md:flex shrink-0">
         <div className="space-y-8">
           <div className="flex items-center space-x-2">
@@ -188,11 +189,10 @@ export default function ConnectionsPage() {
         <div className="pt-4 border-t border-neutral-900"><p className="text-xs text-neutral-500 truncate">{userEmail}</p></div>
       </aside>
 
-      {/* 🖥️ CONTEÚDO PRINCIPAL (100% RESPONSIVO) */}
+      {/* 🖥️ CONTEÚDO PRINCIPAL */}
       <main className="flex-1 p-4 sm:p-6 md:p-10 flex items-center justify-center">
         <div className="max-w-3xl w-full space-y-6">
           
-          {/* NAVEGAÇÃO DE TOPO MOBILE RÁPIDA */}
           <div className="md:hidden flex flex-wrap gap-2 mb-2">
             <button onClick={() => router.push('/overview')} className="px-3 py-2 rounded-xl bg-neutral-900/70 text-neutral-400 text-xs font-semibold">Início</button>
             <button onClick={() => router.push('/chat')} className="px-3 py-2 rounded-xl bg-neutral-900/70 text-neutral-400 text-xs font-semibold">Conversas</button>
@@ -206,7 +206,7 @@ export default function ConnectionsPage() {
               📲 Sincronizar WhatsApp
             </h1>
             <p className="text-xs sm:text-sm text-neutral-400">
-              Conecte seu canal oficial para que o assistente virtual assuma seus agendamentos automaticamente.
+              Conecte seu canal oficial para que o assistente virtual assuma seus atendimentos automaticamente.
             </p>
           </div>
 
@@ -216,7 +216,6 @@ export default function ConnectionsPage() {
             </div>
           )}
 
-          {/* 🧭 SELETOR DE ABAS MOBILE-FRIENDLY */}
           {status !== 'connected' && (
             <div className="flex bg-neutral-900/80 p-1 rounded-xl border border-neutral-800/60 max-w-sm">
               <button
@@ -238,13 +237,12 @@ export default function ConnectionsPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-5 gap-6 bg-neutral-900/30 border border-neutral-800/80 p-5 sm:p-8 rounded-2xl backdrop-blur-sm">
             
-            {/* INSTRUÇÕES DINÂMICAS */}
             <div className="md:col-span-3 space-y-4 text-xs sm:text-sm text-neutral-400 flex flex-col justify-center">
               <h3 className="font-bold text-sm sm:text-base text-neutral-200">Passo a passo no aparelho:</h3>
               {activeTab === 'qr' ? (
                 <ol className="list-decimal list-inside space-y-2.5">
                   <li>Clique no botão para carregar o código QR de sincronização.</li>
-                  <li>Abra o WhatsApp, acesse <span className="text-neutral-300 font-semibold">Configurações</span>.</li>
+                  <li>Abra o WhatsApp no seu celular e acesse <span className="text-neutral-300 font-semibold">Configurações</span>.</li>
                   <li>Selecione <span className="text-emerald-400 font-semibold">Aparelhos Conectados</span>.</li>
                   <li>Clique em <span className="text-neutral-300 font-semibold">Conectar Aparelho</span> e aponte a câmera para a tela.</li>
                 </ol>
@@ -252,30 +250,38 @@ export default function ConnectionsPage() {
                 <ol className="list-decimal list-inside space-y-2.5">
                   <li>Insira o número do WhatsApp com o código do país e DDD (Ex: 55...).</li>
                   <li>Clique para gerar o código de verificação de 8 caracteres.</li>
-                  <li>Abra a notificação do WhatsApp recebida em seu telefone celular.</li>
+                  <li>Abra o WhatsApp no seu celular, vá em Aparelhos Conectados.</li>
                   <li>Selecione <span className="text-neutral-300 font-semibold">Vincular com número de telefone</span> e digite o código exibido.</li>
                 </ol>
               )}
             </div>
 
-            {/* CARD DE INTERAÇÃO DIRETA */}
             <div className="md:col-span-2 border border-neutral-800 bg-neutral-900/50 rounded-xl p-5 flex flex-col items-center justify-center min-h-[260px]">
               
               {status === 'connected' ? (
-                <div className="space-y-3 text-center">
-                  <span className="text-3xl block">✅</span>
+                /* 🔓 CONECTADO: ADICIONADO O BOTÃO DE DESLOGAR */
+                <div className="space-y-4 text-center w-full">
+                  <span className="text-3xl block animate-bounce">✅</span>
                   <div>
-                    <p className="text-xs sm:text-sm font-bold text-neutral-200">Canal Pareado!</p>
+                    <p className="text-sm font-bold text-neutral-200">Canal Pareado!</p>
                     <p className="text-[11px] text-emerald-400 font-semibold mt-1">Sua IA está online e respondendo.</p>
                   </div>
+                  <button
+                    type="button"
+                    onClick={handleResetConnection}
+                    className="w-full py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 font-bold text-xs rounded-xl transition"
+                  >
+                    🔴 Desconectar WhatsApp
+                  </button>
                 </div>
               ) : activeTab === 'qr' ? (
-                /* INTERFACE QR CODE */
                 <>
                   {status === 'loading_qr' ? (
-                    <div className="space-y-2 text-center">
+                    /* 🛠️ CARREGANDO QR: ADICIONADO BOTÃO DE CANCELAR REQUISICAO FLUXO */
+                    <div className="space-y-3 text-center w-full">
                       <div className="mx-auto w-8 h-8 border-3 border-emerald-500/10 border-t-emerald-500 rounded-full animate-spin"></div>
                       <p className="text-[11px] text-neutral-400 animate-pulse">Iniciando canais do WhatsApp...</p>
+                      <button onClick={handleResetConnection} className="text-xs text-neutral-500 hover:text-red-400 underline block mx-auto mt-2">Cancelar</button>
                     </div>
                   ) : status === 'scan_ready' && qrValue ? (
                     <div className="space-y-3 text-center">
@@ -283,7 +289,7 @@ export default function ConnectionsPage() {
                         <QRCodeSVG value={qrValue} size={150} level="H" includeMargin={false} />
                       </div>
                       <p className="text-[10px] text-neutral-500 animate-pulse">Aguardando leitura do sensor...</p>
-                      <button onClick={handleResetConnection} className="text-[10px] text-red-400 underline block mx-auto mt-1">Cancelar Processo</button>
+                      <button onClick={handleResetConnection} className="text-[11px] text-red-400 font-medium underline block mx-auto mt-1">Cancelar Processo</button>
                     </div>
                   ) : (
                     <div className="space-y-3 text-center w-full">
@@ -300,21 +306,22 @@ export default function ConnectionsPage() {
                   )}
                 </>
               ) : (
-                /* INTERFACE NÚMERO DE TELEFONE */
                 <>
                   {status === 'loading_pairing' ? (
-                    <div className="space-y-2 text-center">
+                    /* 🛠️ CARREGANDO PAREAMENTO: BOTÃO DE FUGA INCLUÍDO */
+                    <div className="space-y-3 text-center w-full">
                       <div className="mx-auto w-8 h-8 border-3 border-emerald-500/10 border-t-emerald-500 rounded-full animate-spin"></div>
-                      <p className="text-[11px] text-neutral-400 animate-pulse">O servidor está gerando a chave de 8 dígitos...</p>
+                      <p className="text-[11px] text-neutral-400 animate-pulse">Gerando chave de 8 dígitos...</p>
+                      <button onClick={handleResetConnection} className="text-xs text-neutral-500 hover:text-red-400 underline block mx-auto mt-2">Cancelar</button>
                     </div>
                   ) : status === 'pairing_ready' && pairingCode ? (
                     <div className="space-y-3 text-center w-full">
                       <p className="text-[11px] font-bold text-emerald-400">Insira este código no seu WhatsApp:</p>
-                      <div className="bg-neutral-950 border border-neutral-800 rounded-xl py-3 px-4 font-mono text-lg font-black tracking-widest text-white select-all">
+                      <div className="bg-neutral-950 border border-neutral-800 rounded-xl py-3 px-4 font-mono text-lg font-black tracking-widest text-emerald-400 select-all shadow-inner">
                         {pairingCode.toUpperCase()}
                       </div>
-                      <p className="text-[9px] text-neutral-500">Toque no código para copiar.</p>
-                      <button onClick={handleResetConnection} className="text-[10px] text-red-400 underline block mx-auto mt-2">Alterar número / Cancelar</button>
+                      <p className="text-[9px] text-neutral-500">Abra a notificação de vínculo no seu celular.</p>
+                      <button onClick={handleResetConnection} className="text-[11px] text-red-400 font-medium underline block mx-auto mt-2">Alterar número / Sair</button>
                     </div>
                   ) : (
                     <form onSubmit={handleGeneratePairingCode} className="w-full space-y-4">
@@ -345,7 +352,6 @@ export default function ConnectionsPage() {
 
           </div>
 
-          {/* BOTÃO COMPLEMENTAR DE VOLTAR */}
           <div className="text-left md:hidden">
             <button onClick={() => router.push('/overview')} className="text-xs text-neutral-500 hover:text-white font-medium underline">
               &larr; Voltar ao painel inicial

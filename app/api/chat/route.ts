@@ -13,8 +13,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Configuração ausente: GEMINI_API_KEY não encontrada no .env' }, { status: 500 })
     }
 
-    // 1. Chamada direta e leve para a API oficial do Gemini
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`
+    // 1. 🌟 CORRIGIDO: Alterado de gemini-2.5-flash para gemini-2.0-flash (Versão oficial de 2026)
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`
     
     const responseGemini = await fetch(url, {
       method: 'POST',

@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase as supabaseClient } from '../../src/lib/client'
-import CryptoJS from 'crypto-js' // 🔐 BIBLIOTECA DE CRIPTOGRAFIA ALINHADA
+import CryptoJS from 'crypto-js' 
 
 const supabase = supabaseClient as any
 
@@ -15,16 +15,22 @@ interface Appointment {
   created_at: string
 }
 
-// 🔐 CHAVE DE CRIPTOGRAFIA (Deve ser idêntica à do zap-motor e .env.local)
 const encryptionKey = process.env.NEXT_PUBLIC_ENCRYPTION_KEY || 'zapatende-super-secret-key-2026'
 
-// 🔐 FUNÇÃO PARA DESCRIPTOGRAFAR NOME E WHATSAPP NA TELA
+// 🔐 ALINHAMENTO SIMÉTRICO CRIPTOGRAFIA DETERMINÍSTICA
+function getCryptoConfig() {
+  const key = CryptoJS.SHA256(encryptionKey);
+  const iv = CryptoJS.MD5(encryptionKey);
+  return { key, iv };
+}
+
 function decryptData(cipherText: string) {
   try {
-    if (!cipherText || cipherText.length < 20) return cipherText;
-    const bytes = CryptoJS.AES.decrypt(cipherText, encryptionKey);
-    const originalText = bytes.toString(CryptoJS.enc.Utf8);
-    return originalText || cipherText; 
+    if (!cipherText || cipherText.length < 10) return cipherText;
+    const { key, iv } = getCryptoConfig();
+    // 🌟 IGUALADO: Usa a sintaxe direta que funcionou perfeitamente na tela de chat
+    const decrypted = CryptoJS.AES.decrypt(cipherText, key, { iv });
+    return decrypted.toString(CryptoJS.enc.Utf8) || cipherText; 
   } catch (error) {
     return cipherText;
   }
@@ -37,7 +43,6 @@ export default function AppointmentsPage() {
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [userEmail, setUserEmail] = useState<string | null>(null)
 
-  // 1. Inicializa buscando o usuário e a empresa
   useEffect(() => {
     async function initPage() {
       const { data: { user } } = await supabase.auth.getUser()
@@ -66,7 +71,6 @@ export default function AppointmentsPage() {
     initPage()
   }, [router])
 
-  // 🔄 2. SINCRONIZAÇÃO EM TEMPO REAL COM DESCRIPTOGRAFIA INTERNA
   useEffect(() => {
     if (!orgId) return
 
@@ -78,7 +82,6 @@ export default function AppointmentsPage() {
         .order('scheduled_at', { ascending: true })
 
       if (appData) {
-        // 🔐 TRADUZ OS DADOS ANTES DE MOSTRAR NA TABELA VISUAL
         const decryptedApps = appData.map((app: Appointment) => ({
           ...app,
           client_name: decryptData(app.client_name),
@@ -94,16 +97,10 @@ export default function AppointmentsPage() {
     return () => clearInterval(interval)
   }, [orgId])
 
-  // 🗑️ Remoção Manual (Deleta apenas um item específico)
   async function handleDeleteManual(id: string) {
     if (!confirm('Deseja cancelar e remover este agendamento específico?')) return
-
     try {
-      const { error } = await supabase
-        .from('appointments')
-        .delete()
-        .eq('id', id)
-
+      const { error } = await supabase.from('appointments').delete().eq('id', id)
       if (error) throw error
       setAppointments(prev => prev.filter(item => item.id !== id))
     } catch (err: any) {
@@ -111,20 +108,13 @@ export default function AppointmentsPage() {
     }
   }
 
-  // 🧹 Limpar Tudo (Remoção em Massa de uma vez só)
   async function handleClearAll() {
     if (!orgId) return
-    if (!confirm('⚠️ ALERTA MESTRE: Você tem certeza de que deseja APAGAR TODOS os agendamentos da tabela? Esta ação não pode ser desfeita!')) return
-
+    if (!confirm('⚠️ ALERTA MESTRE: Deseja apagar todos os horários do painel?')) return
     try {
-      const { error } = await supabase
-        .from('appointments')
-        .delete()
-        .eq('organization_id', orgId)
-
+      const { error } = await supabase.from('appointments').delete().eq('organization_id', orgId)
       if (error) throw error
       setAppointments([])
-      alert('Toda a agenda foi limpa com sucesso! 🧹')
     } catch (err: any) {
       alert(`Erro ao limpar histórico: ${err.message}`)
     }
@@ -141,7 +131,7 @@ export default function AppointmentsPage() {
   return (
     <div className="min-h-screen bg-neutral-950 text-white flex select-none">
       
-      {/* 🧭 BARRA LATERAL */}
+      {/* BARRA LATERAL */}
       <aside className="hidden md:flex w-64 border-r border-neutral-800 bg-neutral-900/20 p-6 flex-col justify-between shrink-0">
         <div className="space-y-6">
           <h2 className="text-xl font-bold tracking-tight text-emerald-400">🚀 ZapAtende AI</h2>
@@ -156,7 +146,7 @@ export default function AppointmentsPage() {
         <div className="border-t border-neutral-800 pt-4"><p className="text-xs text-neutral-500 truncate">{userEmail}</p></div>
       </aside>
 
-      {/* 🖥️ CONTEÚDO PRINCIPAL */}
+      {/* CONTEÚDO PRINCIPAL */}
       <main className="flex-1 p-4 sm:p-6 md:p-10 space-y-8 overflow-y-auto">
         <div className="md:hidden flex flex-wrap gap-2">
           <button onClick={() => router.push('/overview')} className="px-3 py-2 rounded-xl bg-neutral-900 text-white text-xs font-semibold">Início</button>
@@ -169,20 +159,15 @@ export default function AppointmentsPage() {
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
             <h1 className="text-2xl font-bold tracking-tight">📅 Agenda Eletrônica</h1>
-            <p className="text-sm text-neutral-400">Horários e consultas marcados de forma automatizada pelo robô no WhatsApp.</p>
+            <p className="text-sm text-neutral-400">Horários marcados de forma automatizada pelo robô no WhatsApp.</p>
           </div>
-
           {appointments.length > 0 && (
-            <button
-              onClick={handleClearAll}
-              className="bg-red-500/10 hover:bg-red-500 border border-red-500/20 hover:text-white text-red-400 text-xs font-bold px-4 py-2 rounded-xl transition-all"
-            >
+            <button onClick={handleClearAll} className="bg-red-500/10 hover:bg-red-500 border border-red-500/20 hover:text-white text-red-400 text-xs font-bold px-4 py-2 rounded-xl transition-all">
               Limpar Todos os Agendamentos
             </button>
           )}
         </div>
 
-        {/* LISTAGEM DOS COMPROMISSOS */}
         <div className="space-y-4">
           {appointments.length === 0 ? (
             <div className="border border-neutral-800 border-dashed rounded-2xl p-12 text-center text-neutral-500 text-sm max-w-xl">
@@ -204,21 +189,15 @@ export default function AppointmentsPage() {
                   {appointments.map((app) => (
                     <tr key={app.id} className="hover:bg-neutral-900/20 transition-colors">
                       <td className="p-4 font-semibold text-white">{app.client_name}</td>
+                      {/* 🌟 EXIBIÇÃO FORMATADA: Mostra o número limpo descriptografado precedido do indicativo + */}
                       <td className="p-4 font-mono text-neutral-400 text-xs">+{app.client_phone}</td>
                       <td className="p-4 text-emerald-400 font-medium">
                         {new Date(app.scheduled_at).toLocaleString('pt-BR', {
-                          day: '2-digit',
-                          month: '2-digit',
-                          year: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit'
+                          day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
                         })}
                       </td>
                       <td className="p-4 text-center">
-                        <button
-                          onClick={() => handleDeleteManual(app.id)}
-                          className="text-xs text-neutral-500 hover:text-red-400 font-semibold transition"
-                        >
+                        <button onClick={() => handleDeleteManual(app.id)} className="text-xs text-neutral-500 hover:text-red-400 font-semibold transition">
                           Cancelar Horário
                         </button>
                       </td>

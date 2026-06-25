@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase as supabaseClient } from '../../src/lib/client'
-import CryptoJS from 'crypto-js' // 🔐 IMPORTANDO A BIBLIOTECA DE CRIPTOGRAFIA
+import CryptoJS from 'crypto-js' 
 
 const supabase = supabaseClient as any
 
@@ -14,7 +14,6 @@ interface Chat {
   updated_at: string
   fluxo_status?: string
   is_archived?: boolean
-  // 📊 NOVOS CAMPOS DO CRM DE VANS:
   lead_score?: number
   lead_status?: string
   veiculo_interesse?: string
@@ -26,19 +25,34 @@ interface Chat {
 
 interface Message {
   id: string
-  sender: 'contact' | 'ai' | 'user'
+  sender: 'contact' | 'ai' | 'user' | 'user_sent'
   text: string
   created_at: string
 }
 
 const encryptionKey = process.env.NEXT_PUBLIC_ENCRYPTION_KEY || 'zapatende-super-secret-key-2026'
 
+function getCryptoConfig() {
+  const key = CryptoJS.SHA256(encryptionKey);
+  const iv = CryptoJS.MD5(encryptionKey);
+  return { key, iv };
+}
+
+function encryptData(text: string) {
+  if (!text) return '';
+  const { key, iv } = getCryptoConfig();
+  return CryptoJS.AES.encrypt(text, key, { iv }).toString();
+}
+
 function decryptData(cipherText: string) {
   try {
-    if (!cipherText || cipherText.length < 20) return cipherText;
-    const bytes = CryptoJS.AES.decrypt(cipherText, encryptionKey);
-    const originalText = bytes.toString(CryptoJS.enc.Utf8);
-    return originalText || cipherText; 
+    if (!cipherText || cipherText.length < 10) return cipherText;
+    const { key, iv } = getCryptoConfig();
+    const decrypted = CryptoJS.AES.decrypt(cipherText, key, { iv });
+    const decryptedText = decrypted.toString(CryptoJS.enc.Utf8);
+    if (!decryptedText) return cipherText;
+    // 🌟 RESOLUÇÃO VISUAL: Arranca o sufixo _lid do texto descriptografado para mostrar o número puro na tela
+    return decryptedText.split('_')[0]; 
   } catch (error) {
     return cipherText;
   }
@@ -58,7 +72,6 @@ export default function ChatPage() {
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
-  // Encontra os detalhes do chat ativo na memória local para renderizar a ficha técnica
   const activeChatDetails = chats.find(c => c.id === activeChatId)
 
   useEffect(() => {
@@ -86,29 +99,13 @@ export default function ChatPage() {
           .eq('is_archived', false)
           .order('updated_at', { ascending: false })
 
-        // 🚀 CONSTRUÇÃO DO LEAD FAKE SEGURO (NICOLAS)
-        const nicolasFake: Chat = {
-          id: 'lead-fake-nicolas',
-          name: 'Nicolas (Lead Teste)',
-          phone: '5511988887777',
-          updated_at: new Date().toISOString(),
-          lead_score: 87,
-          lead_status: 'quente',
-          veiculo_interesse: 'Mercedes-Benz Sprinter 415',
-          forma_pagamento: 'Financiamento bancário',
-          tem_entrada: 'Sim, R$ 25.000',
-          possui_troca: 'Sim, uma Fiorino na troca',
-          prazo_compra: 'Esta semana (Urgente)'
-        };
-
         const decryptedChats = whatsappChats ? whatsappChats.map((chat: Chat) => ({
           ...chat,
           name: decryptData(chat.name),
           phone: decryptData(chat.phone)
         })) : [];
 
-        // Força o Nicolas a estar sempre no topo do painel
-        setChats([nicolasFake, ...decryptedChats])
+        setChats(decryptedChats)
       }
       setLoading(false)
     }
@@ -126,31 +123,15 @@ export default function ChatPage() {
         .eq('is_archived', false)
         .order('updated_at', { ascending: false })
       
-      const nicolasFake: Chat = {
-        id: 'lead-fake-nicolas',
-        name: 'Nicolas (Lead Teste)',
-        phone: '5511988887777',
-        updated_at: new Date().toISOString(),
-        lead_score: 87,
-        lead_status: 'quente',
-        veiculo_interesse: 'Mercedes-Benz Sprinter 415',
-        forma_pagamento: 'Financiamento bancário',
-        tem_entrada: 'Sim, R$ 25.000',
-        possui_troca: 'Sim, uma Fiorino na troca',
-        prazo_compra: 'Esta semana (Urgente)'
-      };
-
       const decryptedChats = whatsappChats ? whatsappChats.map((chat: Chat) => ({
         ...chat,
         name: decryptData(chat.name),
         phone: decryptData(chat.phone)
       })) : [];
 
-      // Mantém o Nicolas vivo na esteira mesmo durante as atualizações em tempo real
-      setChats([nicolasFake, ...decryptedChats])
+      setChats(decryptedChats)
 
-      // 🛡️ SÓ BUSCA MENSAGENS NO BANCO SE NÃO FOR O NICOLAS FAKE
-      if (activeChatId && activeChatId !== 'lead-fake-nicolas') {
+      if (activeChatId) {
         const { data: historic } = await supabase
           .from('whatsapp_messages')
           .select('*')
@@ -169,17 +150,6 @@ export default function ChatPage() {
 
   async function handleSelectChat(chatId: string) {
     setActiveChatId(chatId)
-    
-    // 🚀 HISTÓRICO DE MENSAGENS EXCLUSIVO DO NICOLAS FAKE
-    if (chatId === 'lead-fake-nicolas') {
-      setMessages([
-        { id: 'm1', sender: 'contact', text: 'Olá, vi o anúncio da Sprinter 415. Ela ainda está disponível?', created_at: new Date().toISOString() },
-        { id: 'm2', sender: 'ai', text: 'Olá! Sim, a Sprinter 415 está disponível em nosso pátio. Você gostaria de saber mais sobre as condições ou agendar uma visita?', created_at: new Date().toISOString() },
-        { id: 'm3', sender: 'contact', text: 'Queria saber se aceitam troca, tenho uma Fiorino e o resto vou financiar. Preciso do carro urgente para esta semana ainda.', created_at: new Date().toISOString() }
-      ]);
-      return;
-    }
-
     const { data: historic } = await supabase
       .from('whatsapp_messages')
       .select('*')
@@ -190,12 +160,7 @@ export default function ChatPage() {
 
   async function handleDeleteChat(chatId: string, e: React.MouseEvent) {
     e.stopPropagation() 
-    if (chatId === 'lead-fake-nicolas') {
-      alert('O lead de teste não pode ser ocultado do painel local.')
-      return
-    }
-
-    if (!confirm('Deseja remover esta conversa do seu painel visual? Os logs históricos de consumo de IA e faturamento serão mantidos com segurança.')) return
+    if (!confirm('Deseja remover esta conversa do seu painel visual?')) return
 
     try {
       await supabase
@@ -219,30 +184,18 @@ export default function ChatPage() {
 
     const userText = manualMessage
     setManualMessage('')
-
-    // 🚀 INTERVENÇÃO SIMULADA: Permite digitar e conversar com o Nicolas localmente!
-    if (activeChatId === 'lead-fake-nicolas') {
-      setMessages(prev => [
-        ...prev,
-        {
-          id: Math.random().toString(),
-          sender: 'user',
-          text: userText,
-          created_at: new Date().toISOString()
-        }
-      ]);
-      return;
-    }
-
     setSending(true)
+
     try {
+      const encryptedText = encryptData(userText)
+
       await supabase
         .from('whatsapp_messages')
         .insert({
           chat_id: activeChatId,
           organization_id: orgId,
-          sender: 'user',
-          text: userText
+          sender: 'user', 
+          text: encryptedText
         })
     } catch (err) {
       alert('Erro ao gravar mensagem no banco.')
@@ -269,7 +222,6 @@ export default function ChatPage() {
   return (
     <div className="h-screen bg-neutral-950 text-white flex overflow-hidden select-none">
       
-      {/* 🧭 BARRA LATERAL DO SISTEMA */}
       <aside className="hidden md:flex w-64 border-r border-neutral-800 bg-neutral-900/20 p-6 flex-col justify-between flex-shrink-0">
         <div className="space-y-6">
           <h2 className="text-xl font-bold tracking-tight text-emerald-400">🚀 ZapAtende AI</h2>
@@ -284,16 +236,12 @@ export default function ChatPage() {
         <div className="border-t border-neutral-800 pt-4"><p className="text-xs text-neutral-500 truncate">{userEmail}</p></div>
       </aside>
 
-      {/* 👥 LISTA DE CONTATOS (Coluna da Esquerda) */}
       <section className={`${activeChatId ? 'hidden md:flex' : 'flex'} w-full md:w-80 border-r border-neutral-900 bg-neutral-950 flex-col flex-shrink-0`}>
         <div className="p-4 border-b border-neutral-900 flex justify-between items-center">
           <div>
             <h3 className="font-bold text-sm text-neutral-200">Esteira de Leads</h3>
             <p className="text-xs text-neutral-500 mt-0.5">Qualificação automática por IA</p>
           </div>
-          <button onClick={() => router.push('/overview')} className="md:hidden px-2.5 py-1.5 rounded-lg bg-neutral-900 border border-neutral-800 text-neutral-300 text-xs font-medium">
-            ← Sair
-          </button>
         </div>
         
         <div className="flex-1 overflow-y-auto p-2 space-y-1">
@@ -308,26 +256,13 @@ export default function ChatPage() {
               >
                 <div className="flex justify-between items-center w-full">
                   <span className="font-semibold text-xs text-neutral-200 truncate max-w-[50%]">{chat.name}</span>
-                  
                   <div className="flex items-center gap-1.5 flex-shrink-0">
-                    <span className="text-[10px] font-mono px-1 bg-neutral-900 text-emerald-400 border border-neutral-800 rounded">
-                      🔥 {chat.lead_score ?? 0}%
-                    </span>
-                    <span className={`text-[8px] px-1.5 py-0.5 font-bold uppercase rounded-md border ${getStatusBadgeStyle(chat.lead_status)}`}>
-                      {chat.lead_status || 'Curioso'}
-                    </span>
-                    <button
-                      onClick={(e) => handleDeleteChat(chat.id, e)}
-                      className="text-neutral-600 hover:text-red-400 p-1 text-[11px] font-bold ml-1"
-                      title="Ocultar conversa"
-                    >
-                      ✕
-                    </button>
+                    <span className="text-[10px] font-mono px-1 bg-neutral-900 text-emerald-400 border border-neutral-800 rounded">🔥 {chat.lead_score ?? 0}%</span>
+                    <span className={`text-[8px] px-1.5 py-0.5 font-bold uppercase rounded-md border ${getStatusBadgeStyle(chat.lead_status)}`}>{chat.lead_status || 'Curioso'}</span>
+                    <button onClick={(e) => handleDeleteChat(chat.id, e)} className="text-neutral-600 hover:text-red-400 p-1 text-[11px] font-bold ml-1">✕</button>
                   </div>
                 </div>
-                {chat.veiculo_interesse && (
-                  <p className="text-[10px] text-emerald-500/80 font-medium truncate">🔍 Interesse: {chat.veiculo_interesse}</p>
-                )}
+                {chat.veiculo_interesse && <p className="text-[10px] text-emerald-500/80 font-medium truncate">🔍 Detalhe: {chat.veiculo_interesse}</p>}
                 <span className="text-[10px] text-neutral-500 font-mono">+{chat.phone}</span>
               </div>
             ))
@@ -335,55 +270,32 @@ export default function ChatPage() {
         </div>
       </section>
 
-      {/* 💬 JANELA DE CONVERSA ATIVA (Coluna da Direita) */}
       <main className={`${activeChatId ? 'flex' : 'hidden md:flex'} flex-1 flex flex-col bg-[#0a0a0a] h-full overflow-hidden min-w-0`}>
         {activeChatId && activeChatDetails ? (
           <>
-            {/* TOPO: FICHA TÉCNICA DO CRM */}
             <div className="border-b border-neutral-900 bg-neutral-950 p-4 flex flex-col gap-3 flex-shrink-0">
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="font-bold text-white text-sm sm:text-base">{activeChatDetails.name}</h3>
                   <p className="text-xs text-neutral-400 font-mono">+{activeChatDetails.phone}</p>
                 </div>
-                <button 
-                  onClick={() => setActiveChatId(null)} 
-                  className="md:hidden px-3 py-1.5 rounded-lg bg-neutral-900 hover:bg-neutral-800 text-white text-xs font-semibold transition"
-                >
-                  ← Contatos
-                </button>
+                <button onClick={() => setActiveChatId(null)} className="md:hidden px-3 py-1.5 rounded-lg bg-neutral-900 hover:bg-neutral-800 text-white text-xs font-semibold">← Contatos</button>
               </div>
 
               <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 bg-neutral-900/30 p-2.5 rounded-xl border border-neutral-900/60 text-[11px]">
-                <div className="space-y-0.5">
-                  <span className="text-neutral-500 block text-[10px]">Van Pretendida</span>
-                  <span className="text-neutral-200 font-medium truncate block">{activeChatDetails.veiculo_interesse || 'Não informado'}</span>
-                </div>
-                <div className="space-y-0.5">
-                  <span className="text-neutral-500 block text-[10px]">Pagamento</span>
-                  <span className="text-neutral-200 font-medium truncate block">{activeChatDetails.forma_pagamento || 'Não informado'}</span>
-                </div>
-                <div className="space-y-0.5">
-                  <span className="text-neutral-500 block text-[10px]">Tem Entrada?</span>
-                  <span className="text-neutral-200 font-medium truncate block">{activeChatDetails.tem_entrada || 'Não informado'}</span>
-                </div>
-                <div className="space-y-0.5">
-                  <span className="text-neutral-500 block text-[10px]">Veículo na Troca?</span>
-                  <span className="text-neutral-200 font-medium truncate block">{activeChatDetails.possui_troca || 'Não informado'}</span>
-                </div>
-                <div className="space-y-0.5">
-                  <span className="text-neutral-500 block text-[10px]">Prazo de Compra</span>
-                  <span className="text-amber-400 font-semibold truncate block">{activeChatDetails.prazo_compra || 'Não informado'}</span>
-                </div>
+                <div className="space-y-0.5"><span className="text-neutral-500 block text-[10px]">Interesse Base</span><span className="text-neutral-200 font-medium truncate block">{activeChatDetails.veiculo_interesse || 'Não informado'}</span></div>
+                <div className="space-y-0.5"><span className="text-neutral-500 block text-[10px]">Pagamento</span><span className="text-neutral-200 font-medium truncate block">{activeChatDetails.forma_pagamento || 'Não informado'}</span></div>
+                <div className="space-y-0.5"><span className="text-neutral-500 block text-[10px]">Condição / Entrada</span><span className="text-neutral-200 font-medium truncate block">{activeChatDetails.tem_entrada || 'Não informado'}</span></div>
+                <div className="space-y-0.5"><span className="text-neutral-500 block text-[10px]">Possui Troca?</span><span className="text-neutral-200 font-medium truncate block">{activeChatDetails.possui_troca || 'Não informado'}</span></div>
+                <div className="space-y-0.5"><span className="text-neutral-500 block text-[10px]">Urgência / Prazo</span><span className="text-amber-400 font-semibold truncate block">{activeChatDetails.prazo_compra || 'Não informado'}</span></div>
               </div>
             </div>
 
-            {/* HISTÓRICO DE MENSAGENS */}
             <div className="flex-1 overflow-y-auto p-6 space-y-4 CustomScrollbar">
               {messages.map((msg) => (
                 <div key={msg.id} className={`flex ${msg.sender === 'contact' ? 'justify-start' : 'justify-end'}`}>
-                  <div className={`max-w-[70%] p-3 rounded-2xl ${msg.sender === 'contact' ? 'bg-neutral-800 text-white rounded-tl-sm' : 'bg-emerald-600 text-white rounded-tr-sm'}`}>
-                    <p className="text-sm break-words">{msg.text}</p>
+                  <div className={`max-w-[70%] p-3 rounded-2xl ${msg.sender === 'contact' ? 'bg-neutral-800 text-white rounded-tl-sm' : msg.sender === 'ai' ? 'bg-neutral-900 text-white rounded-tr-sm border border-neutral-800' : 'bg-emerald-600 text-white rounded-tr-sm'}`}>
+                    <p className="text-sm break-words">{decryptData(msg.text)}</p>
                     <span className="text-[9px] text-white/40 block mt-1 text-right">
                       {msg.sender === 'contact' ? 'Cliente' : msg.sender === 'ai' ? 'Robô AI' : 'Você'}
                     </span>
@@ -393,20 +305,10 @@ export default function ChatPage() {
               <div ref={messagesEndRef} />
             </div>
 
-            {/* CAIXA DE ENTRADA DE TEXTO MANUAL */}
             <form onSubmit={handleSendMessage} className="p-4 bg-neutral-950 border-t border-neutral-900 flex-shrink-0">
               <div className="flex gap-2 flex-col sm:flex-row">
-                <input 
-                  type="text" 
-                  required
-                  value={manualMessage}
-                  onChange={(e) => setManualMessage(e.target.value)}
-                  placeholder="Intervenha no fluxo respondendo direto para o WhatsApp do cliente..."
-                  className="flex-1 bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-emerald-500 text-white"
-                />
-                <button type="submit" className="bg-emerald-500 hover:bg-emerald-600 disabled:bg-neutral-800 text-black font-semibold px-6 py-3 rounded-xl transition-colors text-sm sm:text-xs whitespace-nowrap">
-                  Enviar via Web
-                </button>
+                <input type="text" required value={manualMessage} onChange={(e) => setManualMessage(e.target.value)} placeholder="Intervenha no fluxo..." className="flex-1 bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-emerald-500 text-white" />
+                <button type="submit" className="bg-emerald-500 hover:bg-emerald-600 text-black font-semibold px-6 py-3 rounded-xl text-sm whitespace-nowrap">Enviar via Web</button>
               </div>
             </form>
           </>
